@@ -8,7 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"time"
+	//	"strings"
 )
 
 type SlackBot struct {
@@ -186,6 +187,20 @@ func NewSlackBot(token string) *SlackBot {
 	return slackBot
 }
 
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 60 * time.Second
+
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod = (pongWait * 9) / 10
+
+	// Maximum message size allowed from peer.
+	maxMessageSize = 512
+)
+
 func main() {
 
 	token := os.Getenv("GILIBOT_SLACK_TOKEN")
@@ -197,42 +212,43 @@ func main() {
 
 	socketUrl := slackBot.Url
 
-	var d *ws.Dialer
-	c, _, err := d.Dial(socketUrl, *new(http.Header))
+	d := ws.DefaultDialer
+	con, _, err := d.Dial(socketUrl, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	//defer con.Close()
+
+	con.SetReadLimit(maxMessageSize)
+	con.SetReadDeadline(time.Now().Add(pongWait))
+	var message map[string]interface{}
+
+	i := 1
 	for {
-		_, p, err := c.ReadMessage()
+
+		err := con.ReadJSON(&message)
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Println("message received")
+		log.Println(message)
+		//if no type set ignore
+		if _, ok := message["type"]; !ok {
+			continue
+		}
 
-		var y map[string]interface{}
-		json.Unmarshal(p, &y)
-
-		message := &Message{}
-		json.Unmarshal(p, &message)
-
-		if message.Type == "message" && strings.ToLower(message.Text) == "hello kilibot" {
-
-			response := &Response{
-				Id:      fmt.Sprintf("%v", messagesSent),
-				Type:    "message",
-				Channel: message.Channel,
-				Text:    "hello to you !",
+		if mType, ok := message["type"].(string); ok {
+			switch mType {
+			case "message":
+				con.WriteJSON(map[string]interface{}{
+					"id":      fmt.Sprintf("%v", i),
+					"type":    "message",
+					"channel": message["channel"].(string),
+					"text":    "hello to you !",
+				})
+				i++
 			}
-			json, err := json.Marshal(response)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			err = c.WriteMessage(ws.TextMessage, json)
-			if err != nil {
-				log.Fatal(err)
-			}
-			messagesSent++
 		}
 	}
 }
