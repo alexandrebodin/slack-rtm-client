@@ -201,6 +201,60 @@ const (
 	maxMessageSize = 512
 )
 
+func reader(con *ws.Conn) {
+
+	defer con.Close()
+	i := 1
+
+	con.SetReadLimit(maxMessageSize)
+	con.SetReadDeadline(time.Now().Add(pongWait))
+	var message = *new(MessageToSend)
+	for {
+
+		err := con.ReadJSON(&message)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("message received")
+		log.Println(message)
+		//if no type set ignore
+		if _, ok := message["type"]; !ok {
+			continue
+		}
+
+		if mType, ok := message["type"].(string); ok {
+			switch mType {
+			case "message":
+				sendChan <- map[string]interface{}{
+					"id":      fmt.Sprintf("%v", i),
+					"type":    "message",
+					"channel": message["channel"].(string),
+					"text":    "hello to you !",
+				}
+				i++
+			}
+		}
+	}
+
+}
+
+func writer(con *ws.Conn) {
+
+	ticker := time.Tick(10 * time.Second)
+	for {
+		select {
+		case m := <-sendChan:
+			con.WriteJSON(m)
+		case <-ticker:
+			fmt.Println("Tick")
+		}
+	}
+}
+
+type MessageToSend map[string]interface{}
+
+var sendChan = make(chan MessageToSend, 2)
+
 func main() {
 
 	token := os.Getenv("GILIBOT_SLACK_TOKEN")
@@ -218,37 +272,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//defer con.Close()
+	go writer(con)
+	reader(con)
 
-	con.SetReadLimit(maxMessageSize)
-	con.SetReadDeadline(time.Now().Add(pongWait))
-	var message map[string]interface{}
-
-	i := 1
-	for {
-
-		err := con.ReadJSON(&message)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Println("message received")
-		log.Println(message)
-		//if no type set ignore
-		if _, ok := message["type"]; !ok {
-			continue
-		}
-
-		if mType, ok := message["type"].(string); ok {
-			switch mType {
-			case "message":
-				con.WriteJSON(map[string]interface{}{
-					"id":      fmt.Sprintf("%v", i),
-					"type":    "message",
-					"channel": message["channel"].(string),
-					"text":    "hello to you !",
-				})
-				i++
-			}
-		}
-	}
 }
