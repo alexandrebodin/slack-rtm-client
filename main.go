@@ -218,7 +218,8 @@ func reader(con *ws.Conn) {
 
 		err := con.ReadJSON(&message)
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			continue
 		}
 		log.Println("message received")
 		log.Println(message)
@@ -228,6 +229,11 @@ func reader(con *ws.Conn) {
 		}
 
 		if mType, ok := message["type"].(string); ok {
+
+			if _, ok := message["reply_to"]; ok {
+				continue
+			}
+
 			switch mType {
 			case "message":
 				sendChan <- map[string]interface{}{
@@ -249,7 +255,11 @@ func writer(con *ws.Conn) {
 	for {
 		select {
 		case m := <-sendChan:
-			con.WriteJSON(m)
+			err := con.WriteJSON(m)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 		case <-ticker:
 			fmt.Println("Tick")
 		}
@@ -264,6 +274,8 @@ func (s *SlackBot) Run() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer con.Close()
 
 	go writer(con)
 	reader(con)
