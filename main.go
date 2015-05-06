@@ -13,6 +13,11 @@ import (
 )
 
 type SlackBot struct {
+	SlackData SlackData
+	sendChan  chan MessageToSend
+}
+
+type SlackData struct {
 	Ok    bool   `json="ok"`
 	Error string `json="error"`
 	Url   string `json="url"`
@@ -179,7 +184,7 @@ func NewSlackBot(token string) *SlackBot {
 	}
 
 	slackBot := &SlackBot{}
-	err = json.Unmarshal(body, &slackBot)
+	err = json.Unmarshal(body, &slackBot.SlackData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -251,6 +256,19 @@ func writer(con *ws.Conn) {
 	}
 }
 
+func (s *SlackBot) Run() {
+	socketUrl := s.SlackData.Url
+
+	d := ws.DefaultDialer
+	con, _, err := d.Dial(socketUrl, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go writer(con)
+	reader(con)
+}
+
 type MessageToSend map[string]interface{}
 
 var sendChan = make(chan MessageToSend, 2)
@@ -263,16 +281,6 @@ func main() {
 	}
 
 	slackBot := NewSlackBot(token)
-
-	socketUrl := slackBot.Url
-
-	d := ws.DefaultDialer
-	con, _, err := d.Dial(socketUrl, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go writer(con)
-	reader(con)
+	slackBot.Run()
 
 }
