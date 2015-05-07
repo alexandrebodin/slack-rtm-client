@@ -24,9 +24,6 @@ func main() {
 			log.Fatal(err)
 		}
 
-		if eType == slack.MessageEvent {
-			log.Println("Message received")
-			log.Println(event)
-		}
+		log.Println(eType, event, err)
 	}
 }
