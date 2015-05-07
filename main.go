@@ -15,6 +15,7 @@ import (
 type SlackBot struct {
 	SlackData SlackData
 	sendChan  chan MessageToSend
+	conn      *SlackConnection
 }
 
 type SlackData struct {
@@ -147,7 +148,7 @@ type Bot struct {
 	Deleted bool   `json="deleted"`
 }
 
-type Message struct {
+type SlackMessage struct {
 	Type    string
 	Text    string
 	User    string
@@ -165,6 +166,71 @@ type Response struct {
 	Text    string `json:"text"`
 	Id      string `json:"id"`
 	Channel string `json:"channel"`
+}
+
+type SlackEvent int64
+
+const (
+	Hello SlackEvent = iota
+	Message
+	UserTyping
+	ChannelMarked
+	ChannelCreated
+	ChannelJoined
+	ChannelLeft
+	ChannelDeleted
+	ChannelRename
+	ChannelArchive
+	ChannelUnarchive
+	ChannelHistoryChanged
+	ImCreated
+	ImOpen
+	ImClose
+	ImMarked
+	ImHistoryChanged
+	GroupJoined
+	GroupLeft
+	GroupOpen
+	GroupClose
+	GroupArchive
+	GroupUnarchive
+	GroupRename
+	GroupMarked
+	GroupHistoryChanged
+	FileCreated
+	FileShared
+	FileUnshared
+	FilePublic
+	FilePrivate
+	FileChange
+	FileDeleted
+	FileCommentAdded
+	FileCommentEdited
+	FileCommentDeleted
+	PinAdded
+	PinRemoved
+	PresenceChanged
+	ManualPresenceChange
+	PrefChange
+	UserChange
+	TeamJoin
+	StarAdded
+	StarRemoved
+	EmojiChanged
+	CommandsChanged
+	TeamPlanChange
+	TeamPrefChange
+	TeamRename
+	TeamDomainChange
+	EmailDomainChanged
+	BotAdded
+	BotChanged
+	AccountsChanged
+	TeamMigrationStarted
+)
+
+type SlackConnection struct {
+	con *ws.Conn
 }
 
 var messagesSent int64 = 1
@@ -206,17 +272,17 @@ const (
 	maxMessageSize = 512
 )
 
-func reader(con *ws.Conn) {
+func (s *SlackConnection) StartReader() {
 
-	defer con.Close()
+	defer s.con.Close()
 	i := 1
 
-	con.SetReadLimit(maxMessageSize)
-	con.SetReadDeadline(time.Now().Add(pongWait))
+	s.con.SetReadLimit(maxMessageSize)
+	s.con.SetReadDeadline(time.Now().Add(pongWait))
 	var message = *new(MessageToSend)
 	for {
 
-		err := con.ReadJSON(&message)
+		err := s.con.ReadJSON(&message)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -249,13 +315,13 @@ func reader(con *ws.Conn) {
 
 }
 
-func writer(con *ws.Conn) {
+func (s *SlackConnection) StartWriter() {
 
 	ticker := time.Tick(10 * time.Second)
 	for {
 		select {
 		case m := <-sendChan:
-			err := con.WriteJSON(m)
+			err := s.con.WriteJSON(m)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -275,10 +341,12 @@ func (s *SlackBot) Run() {
 		log.Fatal(err)
 	}
 
+	s.conn = &SlackConnection{con}
+
 	defer con.Close()
 
-	go writer(con)
-	reader(con)
+	go s.conn.StartWriter()
+	s.conn.StartReader()
 }
 
 type MessageToSend map[string]interface{}
