@@ -1,22 +1,12 @@
-package main
+package slack_rtm
 
 import (
 	"encoding/json"
-	"fmt"
 	ws "github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"time"
-	//	"strings"
 )
-
-type SlackBot struct {
-	SlackData SlackData
-	sendChan  chan MessageToSend
-	conn      *SlackConnection
-}
 
 type SlackData struct {
 	Ok    bool   `json="ok"`
@@ -168,199 +158,114 @@ type Response struct {
 	Channel string `json:"channel"`
 }
 
-type SlackEvent int64
+type EventType int
 
 const (
-	Hello SlackEvent = iota
-	Message
-	UserTyping
-	ChannelMarked
-	ChannelCreated
-	ChannelJoined
-	ChannelLeft
-	ChannelDeleted
-	ChannelRename
-	ChannelArchive
-	ChannelUnarchive
-	ChannelHistoryChanged
-	ImCreated
-	ImOpen
-	ImClose
-	ImMarked
-	ImHistoryChanged
-	GroupJoined
-	GroupLeft
-	GroupOpen
-	GroupClose
-	GroupArchive
-	GroupUnarchive
-	GroupRename
-	GroupMarked
-	GroupHistoryChanged
-	FileCreated
-	FileShared
-	FileUnshared
-	FilePublic
-	FilePrivate
-	FileChange
-	FileDeleted
-	FileCommentAdded
-	FileCommentEdited
-	FileCommentDeleted
-	PinAdded
-	PinRemoved
-	PresenceChanged
-	ManualPresenceChange
-	PrefChange
-	UserChange
-	TeamJoin
-	StarAdded
-	StarRemoved
-	EmojiChanged
-	CommandsChanged
-	TeamPlanChange
-	TeamPrefChange
-	TeamRename
-	TeamDomainChange
-	EmailDomainChanged
-	BotAdded
-	BotChanged
-	AccountsChanged
-	TeamMigrationStarted
+	NoEvent EventType = iota
+	HelloEvent
+	MessageEvent
+	UserTypingEvent
+	ChannelMarkedEvent
+	ChannelCreatedEvent
+	ChannelJoinedEvent
+	ChannelLeftEvent
+	ChannelDeletedEvent
+	ChannelRenameEvent
+	ChannelArchiveEvent
+	ChannelUnarchiveEvent
+	ChannelHistoryChangedEvent
+	ImCreatedEvent
+	ImOpenEvent
+	ImCloseEvent
+	ImMarkedEvent
+	ImHistoryChangedEvent
+	GroupJoinedEvent
+	GroupLeftEvent
+	GroupOpenEvent
+	GroupCloseEvent
+	GroupArchiveEvent
+	GroupUnarchiveEvent
+	GroupRenameEvent
+	GroupMarkedEvent
+	GroupHistoryChangedEvent
+	FileCreatedEvent
+	FileSharedEvent
+	FileUnsharedEvent
+	FilePublicEvent
+	FilePrivateEvent
+	FileChangeEvent
+	FileDeletedEvent
+	FileCommentAddedEvent
+	FileCommentEditedEvent
+	FileCommentDeletedEvent
+	PinAddedEvent
+	PinRemovedEvent
+	PresenceChangedEvent
+	ManualPresenceChangeEvent
+	PrefChangeEvent
+	UserChangeEvent
+	TeamJoinEvent
+	StarAddedEvent
+	StarRemovedEvent
+	EmojiChangedEvent
+	CommandsChangedEvent
+	TeamPlanChangeEvent
+	TeamPrefChangeEvent
+	TeamRenameEvent
+	TeamDomainChangeEvent
+	EmailDomainChangedEvent
+	BotAddedEvent
+	BotChangedEvent
+	AccountsChangedEvent
+	TeamMigrationStartedEvent
 )
 
-type SlackConnection struct {
-	con *ws.Conn
-}
-
-var messagesSent int64 = 1
 var slackAddr = "https://slack.com/api/rtm.start"
 
-func NewSlackBot(token string) *SlackBot {
+type SlackClient struct {
+	SlackData SlackData
+	conn      *ws.Conn
+}
+
+func NewSlackClient(token string) (*SlackClient, error) {
 
 	resp, err := http.Get(slackAddr + "?token=" + token)
 	defer resp.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	slackBot := &SlackBot{}
-	err = json.Unmarshal(body, &slackBot.SlackData)
+	s := &SlackClient{}
+	err = json.Unmarshal(body, &s.SlackData)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-
-	return slackBot
-}
-
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
-)
-
-func (s *SlackConnection) StartReader() {
-
-	defer s.con.Close()
-	i := 1
-
-	s.con.SetReadLimit(maxMessageSize)
-	s.con.SetReadDeadline(time.Now().Add(pongWait))
-	var message = *new(MessageToSend)
-	for {
-
-		err := s.con.ReadJSON(&message)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		log.Println("message received")
-		log.Println(message)
-		//if no type set ignore
-		if _, ok := message["type"]; !ok {
-			continue
-		}
-
-		if mType, ok := message["type"].(string); ok {
-
-			if _, ok := message["reply_to"]; ok {
-				continue
-			}
-
-			switch mType {
-			case "message":
-				sendChan <- map[string]interface{}{
-					"id":      fmt.Sprintf("%v", i),
-					"type":    "message",
-					"channel": message["channel"].(string),
-					"text":    "hello to you !",
-				}
-				i++
-			}
-		}
-	}
-
-}
-
-func (s *SlackConnection) StartWriter() {
-
-	ticker := time.Tick(10 * time.Second)
-	for {
-		select {
-		case m := <-sendChan:
-			err := s.con.WriteJSON(m)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-		case <-ticker:
-			fmt.Println("Tick")
-		}
-	}
-}
-
-func (s *SlackBot) Run() {
-	socketUrl := s.SlackData.Url
 
 	d := ws.DefaultDialer
-	con, _, err := d.Dial(socketUrl, nil)
+	conn, _, err := d.Dial(s.SlackData.Url, nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	s.conn = &SlackConnection{con}
-
-	defer con.Close()
-
-	go s.conn.StartWriter()
-	s.conn.StartReader()
+	s.conn = conn
+	return s, nil
 }
 
-type MessageToSend map[string]interface{}
+func (s *SlackClient) NextEvent() (EventType, map[string]interface{}, error) {
 
-var sendChan = make(chan MessageToSend, 2)
-
-func main() {
-
-	token := os.Getenv("GILIBOT_SLACK_TOKEN")
-	if token == "" {
-		log.Fatal("slack token is missing")
+	var event map[string]interface{}
+	err := s.conn.ReadJSON(&event)
+	if err != nil {
+		return NoEvent, nil, err
 	}
 
-	slackBot := NewSlackBot(token)
-	slackBot.Run()
+	log.Println("message received")
+	log.Println(event)
 
+	return HelloEvent, event, nil
 }
