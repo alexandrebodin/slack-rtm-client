@@ -2,10 +2,11 @@ package slack_rtm
 
 import (
 	"encoding/json"
+	"errors"
 	ws "github.com/gorilla/websocket"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"reflect"
 )
 
 type SlackData struct {
@@ -158,69 +159,12 @@ type Response struct {
 	Channel string `json:"channel"`
 }
 
-type EventType int
-
-const (
-	NoEvent EventType = iota
-	HelloEvent
-	MessageEvent
-	UserTypingEvent
-	ChannelMarkedEvent
-	ChannelCreatedEvent
-	ChannelJoinedEvent
-	ChannelLeftEvent
-	ChannelDeletedEvent
-	ChannelRenameEvent
-	ChannelArchiveEvent
-	ChannelUnarchiveEvent
-	ChannelHistoryChangedEvent
-	ImCreatedEvent
-	ImOpenEvent
-	ImCloseEvent
-	ImMarkedEvent
-	ImHistoryChangedEvent
-	GroupJoinedEvent
-	GroupLeftEvent
-	GroupOpenEvent
-	GroupCloseEvent
-	GroupArchiveEvent
-	GroupUnarchiveEvent
-	GroupRenameEvent
-	GroupMarkedEvent
-	GroupHistoryChangedEvent
-	FileCreatedEvent
-	FileSharedEvent
-	FileUnsharedEvent
-	FilePublicEvent
-	FilePrivateEvent
-	FileChangeEvent
-	FileDeletedEvent
-	FileCommentAddedEvent
-	FileCommentEditedEvent
-	FileCommentDeletedEvent
-	PinAddedEvent
-	PinRemovedEvent
-	PresenceChangedEvent
-	ManualPresenceChangeEvent
-	PrefChangeEvent
-	UserChangeEvent
-	TeamJoinEvent
-	StarAddedEvent
-	StarRemovedEvent
-	EmojiChangedEvent
-	CommandsChangedEvent
-	TeamPlanChangeEvent
-	TeamPrefChangeEvent
-	TeamRenameEvent
-	TeamDomainChangeEvent
-	EmailDomainChangedEvent
-	BotAddedEvent
-	BotChangedEvent
-	AccountsChangedEvent
-	TeamMigrationStartedEvent
-)
-
 var slackAddr = "https://slack.com/api/rtm.start"
+
+var (
+	errInvalidEvent = errors.New("slackClient: message received but no type specified")
+	errTypeNotFound = errors.New("slackClient: message received but type unrecognized")
+)
 
 type SlackClient struct {
 	SlackData SlackData
@@ -256,16 +200,58 @@ func NewSlackClient(token string) (*SlackClient, error) {
 	return s, nil
 }
 
-func (s *SlackClient) NextEvent() (EventType, map[string]interface{}, error) {
+func (s *SlackClient) NextEvent() (Event, error) {
 
-	var event map[string]interface{}
-	err := s.conn.ReadJSON(&event)
+	_, data, err := s.conn.ReadMessage()
 	if err != nil {
-		return NoEvent, nil, err
+		return nil, err
 	}
 
-	log.Println("message received")
-	log.Println(event)
+	//get type and subtype for primary detection
+	var event AbstractEvent
+	err = json.Unmarshal(data, &event)
+	if err != nil {
+		return nil, err
+	}
 
-	return HelloEvent, event, nil
+	//once concrete event initialzed, fill it
+	concreteEvent, err := retrieveEvent(event)
+	if err != nil {
+		return nil, err
+	}
+
+	t := reflect.TypeOf(concreteEvent)
+	ref := reflect.New(t).Interface()
+
+	err = json.Unmarshal(data, &ref)
+	if err != nil {
+		return nil, err
+	}
+
+	return ref, nil
+}
+
+func retrieveEvent(e AbstractEvent) (Event, error) {
+
+	switch e.Type {
+	case "hello":
+		return HelloEvent{}, nil
+	case "message":
+		if e.SubType != "" {
+			return detectSubType(e)
+		}
+		return MessageEvent{}, nil
+	case "user_typing":
+		return UserTypingEvent{}, nil
+	default:
+		return nil, errTypeNotFound
+	}
+}
+
+func detectSubType(e AbstractEvent) (Event, error) {
+
+	switch e.SubType {
+	default:
+		return nil, errTypeNotFound
+	}
 }

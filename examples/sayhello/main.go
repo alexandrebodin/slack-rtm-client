@@ -19,11 +19,21 @@ func main() {
 	}
 
 	for {
-		eType, event, err := slackClient.NextEvent()
+		event, err := slackClient.NextEvent()
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			continue
 		}
 
-		log.Println(eType, event, err)
+		switch event.(type) {
+		case *slack.HelloEvent:
+			log.Println("connection established")
+		case *slack.MessageEvent:
+			a := event.(*slack.MessageEvent)
+			log.Printf("message received => %v", a.Text)
+		case *slack.UserTypingEvent:
+			a := event.(*slack.UserTypingEvent)
+			log.Printf("User %v is typing in channel %v", a.User, a.Channel)
+		}
 	}
 }
