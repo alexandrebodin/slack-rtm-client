@@ -6,6 +6,21 @@ import (
 	"os"
 )
 
+type handler struct{}
+
+func (h *handler) OnHello() error {
+
+	log.Println("connection established")
+	return nil
+}
+
+func (h *handler) OnMessage(m *slack.MessageType) error {
+
+	log.Println("message received")
+	log.Println(m)
+	return nil
+}
+
 func main() {
 
 	token := os.Getenv("GILIBOT_SLACK_TOKEN")
@@ -13,27 +28,17 @@ func main() {
 		log.Fatal("slack token is missing")
 	}
 
-	slackClient, err := slack.NewSlackClient(token)
+	h := &handler{}
+
+	slackClient, err := slack.New(token)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for {
-		event, err := slackClient.NextEvent()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
+	slackClient.AddListener(slack.MessageEvent, h)
 
-		switch event.(type) {
-		case *slack.HelloEvent:
-			log.Println("connection established")
-		case *slack.MessageEvent:
-			a := event.(*slack.MessageEvent)
-			log.Printf("message received => %v", a.Text)
-		case *slack.UserTypingEvent:
-			a := event.(*slack.UserTypingEvent)
-			log.Printf("User %v is typing in channel %v", a.User, a.Channel)
-		}
+	err = slackClient.Run(h)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
