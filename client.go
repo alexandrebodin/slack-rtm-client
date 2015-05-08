@@ -5,7 +5,6 @@ import (
 	"errors"
 	ws "github.com/gorilla/websocket"
 	"io/ioutil"
-	"log"
 	"net/http"
 )
 
@@ -75,10 +74,8 @@ func (s *slackClient) Run(h HelloHandler) error {
 		s.dispatcher.addHelloListener(h)
 	}
 
-	go s.startReader()
+	s.startReader()
 	//s.sartWriter()
-	quit := make(chan int)
-	<-quit
 	return nil
 }
 
@@ -106,14 +103,11 @@ func (s *slackClient) startReader() {
 			break
 		}
 
-		//get type and subtype for primary detection
 		var event AbstractEvent
 		err = json.Unmarshal(data, &event)
 		if err != nil {
 			break
 		}
-
-		log.Println(event)
 
 		d := s.dispatcher
 		switch event.Type {
