@@ -1,5 +1,17 @@
 package slack_rtm
 
+type Error struct {
+	Code string `json:"code"`
+	Msg  string `json:"msg"`
+}
+
+type ResponseMessage struct {
+	Type    string `json:"type"`
+	Text    string `json:"text"`
+	Id      string `json:"id"`
+	Channel string `json:"channel"`
+}
+
 type AbstractEvent struct {
 	Type    string `json="type"`
 	SubType string `json="subtype"`
@@ -29,11 +41,11 @@ type UserTypingType struct {
 }
 
 type HelloHandler interface {
-	OnHello() error
+	OnHello(c *SlackContext) error
 }
 
 type MessageHandler interface {
-	OnMessage(m *MessageType) error
+	OnMessage(c *SlackContext, m *MessageType) error
 }
 
 type TextMessageHandler func(m *MessageType) error

@@ -1,5 +1,21 @@
 package slack_rtm
 
+type SlackData struct {
+	Ok    bool   `json="ok"`
+	Error string `json="error"`
+	Url   string `json="url"`
+	Self  struct {
+		ID   string `json="id"`
+		Name string `json="name"`
+	} `json="self"`
+	Users    []User    `json="users"`
+	Team     Team      `json="team"`
+	Ims      []Im      `json="ims"`
+	Groups   []Group   `json="groups"`
+	Channels []Channel `json="channels"`
+	Bots     []Bot     `json="bots"`
+}
+
 type User struct {
 	Id                string `json="id"`
 	Name              string `json="name"`
@@ -112,24 +128,4 @@ type Bot struct {
 	Id      string `json="id"`
 	Name    string `json="name"`
 	Deleted bool   `json="deleted"`
-}
-
-type SlackMessage struct {
-	Type    string
-	Text    string
-	User    string
-	Channel string
-	OK      string
-	ReplyTo string `json:"reply_to"`
-	Error   struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-	}
-}
-
-type Response struct {
-	Type    string `json:"type"`
-	Text    string `json:"text"`
-	Id      string `json:"id"`
-	Channel string `json:"channel"`
 }

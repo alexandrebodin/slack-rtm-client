@@ -15,22 +15,6 @@ var (
 	errTypeNotFound = errors.New("slackClient: message received but type unrecognized")
 )
 
-type SlackData struct {
-	Ok    bool   `json="ok"`
-	Error string `json="error"`
-	Url   string `json="url"`
-	Self  struct {
-		ID   string `json="id"`
-		Name string `json="name"`
-	} `json="self"`
-	Users    []User    `json="users"`
-	Team     Team      `json="team"`
-	Ims      []Im      `json="ims"`
-	Groups   []Group   `json="groups"`
-	Channels []Channel `json="channels"`
-	Bots     []Bot     `json="bots"`
-}
-
 type slackClient struct {
 	slackData  SlackData
 	dispatcher *slackDispatcher
@@ -75,7 +59,6 @@ func (s *slackClient) Run(h HelloHandler) error {
 	}
 
 	s.startReader()
-	//s.sartWriter()
 	return nil
 }
 
@@ -100,27 +83,32 @@ func (s *slackClient) startReader() {
 	for {
 		_, data, err := s.conn.ReadMessage()
 		if err != nil {
-			break
+			continue
 		}
 
 		var event AbstractEvent
 		err = json.Unmarshal(data, &event)
 		if err != nil {
-			break
+			continue
 		}
+
+		ctx := &SlackContext{s}
 
 		d := s.dispatcher
 		switch event.Type {
 		case "hello":
-			d.dispatchHello()
+			d.dispatchHello(ctx)
 		case "message":
-
 			m := &MessageType{}
 			json.Unmarshal(data, &m)
-			d.dispatchMessage(m)
+			d.dispatchMessage(ctx, m)
 
 		default:
 			continue
 		}
 	}
+}
+
+func (s *slackClient) WriteMessage(v interface{}) error {
+	return s.conn.WriteJSON(v)
 }

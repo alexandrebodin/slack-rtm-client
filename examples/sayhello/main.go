@@ -8,16 +8,21 @@ import (
 
 type handler struct{}
 
-func (h *handler) OnHello() error {
+func (h *handler) OnHello(c *slack.SlackContext) error {
 
 	log.Println("connection established")
 	return nil
 }
 
-func (h *handler) OnMessage(m *slack.MessageType) error {
+func (h *handler) OnMessage(c *slack.SlackContext, m *slack.MessageType) error {
 
-	log.Println("message received")
-	log.Println(m)
+	r := slack.ResponseMessage{
+		Id:      "1",
+		Type:    "message",
+		Text:    "Coucou les copains",
+		Channel: m.Channel,
+	}
+	c.Client.WriteMessage(r)
 	return nil
 }
 
