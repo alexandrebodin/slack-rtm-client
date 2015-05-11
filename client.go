@@ -45,7 +45,7 @@ func New(token string) (*slackClient, error) {
 	return s, nil
 }
 
-func (s *slackClient) Run(h HelloHandler) error {
+func (s *slackClient) Run(h ...HelloHandler) error {
 
 	conn, _, err := ws.DefaultDialer.Dial(s.slackData.Url, nil)
 	if err != nil {
@@ -54,8 +54,8 @@ func (s *slackClient) Run(h HelloHandler) error {
 
 	s.conn = conn
 
-	if h != nil {
-		s.dispatcher.addHelloListener(h)
+	if len(h) > 0 {
+		s.dispatcher.addHelloListener(h[0])
 	}
 
 	s.startReader()
