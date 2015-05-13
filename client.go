@@ -15,13 +15,13 @@ var (
 	errTypeNotFound = errors.New("slackClient: message received but type unrecognized")
 )
 
-type slackClient struct {
+type SlackClient struct {
 	slackData  SlackData
 	dispatcher *slackDispatcher
 	conn       *ws.Conn
 }
 
-func New(token string) (*slackClient, error) {
+func New(token string) (*SlackClient, error) {
 
 	resp, err := http.Get(slackAddr + "?token=" + token)
 	defer resp.Body.Close()
@@ -34,7 +34,7 @@ func New(token string) (*slackClient, error) {
 		return nil, err
 	}
 
-	s := &slackClient{
+	s := &SlackClient{
 		dispatcher: &slackDispatcher{},
 	}
 	err = json.Unmarshal(body, &s.slackData)
@@ -45,7 +45,7 @@ func New(token string) (*slackClient, error) {
 	return s, nil
 }
 
-func (s *slackClient) Run(h ...HelloHandler) error {
+func (s *SlackClient) Run(h ...HelloHandler) error {
 
 	conn, _, err := ws.DefaultDialer.Dial(s.slackData.Url, nil)
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *slackClient) Run(h ...HelloHandler) error {
 	return nil
 }
 
-func (s *slackClient) AddListener(eType EventType, v interface{}) {
+func (s *SlackClient) AddListener(eType EventType, v interface{}) {
 
 	switch eType {
 	case HelloEvent:
@@ -78,7 +78,7 @@ type Event struct {
 	data interface{}
 }
 
-func (s *slackClient) startReader() {
+func (s *SlackClient) startReader() {
 
 	for {
 		_, data, err := s.conn.ReadMessage()
@@ -109,6 +109,6 @@ func (s *slackClient) startReader() {
 	}
 }
 
-func (s *slackClient) WriteMessage(v interface{}) error {
+func (s *SlackClient) WriteMessage(v interface{}) error {
 	return s.conn.WriteJSON(v)
 }

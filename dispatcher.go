@@ -6,7 +6,7 @@ type slackDispatcher struct {
 }
 
 type SlackContext struct {
-	Client *slackClient
+	Client *SlackClient
 }
 
 func (d *slackDispatcher) addMessageListener(handler MessageHandler) {
